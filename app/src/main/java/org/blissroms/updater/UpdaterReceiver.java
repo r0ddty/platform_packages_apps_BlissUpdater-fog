@@ -28,6 +28,7 @@ import android.os.SystemProperties;
 import androidx.core.app.NotificationCompat;
 import androidx.preference.PreferenceManager;
 
+import org.blissroms.updater.controller.UpdaterController;
 import org.blissroms.updater.misc.BuildInfoUtils;
 import org.blissroms.updater.misc.Constants;
 import org.blissroms.updater.misc.StringGenerator;
@@ -97,6 +98,8 @@ public class UpdaterReceiver extends BroadcastReceiver {
                 pref.edit().putBoolean(Constants.PREF_INSTALL_NOTIFIED, true).apply();
                 showUpdateFailedNotification(context);
             }
+
+            UpdaterController.getInstance(context).checkForPendingDeletions();
         }
     }
 }

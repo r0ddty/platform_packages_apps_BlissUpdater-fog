@@ -24,7 +24,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.res.Configuration;
 import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -51,6 +50,7 @@ import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.content.ContextCompat;
 import androidx.core.view.WindowInsetsCompat;
@@ -61,7 +61,6 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.google.android.material.appbar.CollapsingToolbarLayout;
 import com.google.android.material.snackbar.Snackbar;
 
-import org.json.JSONException;
 import org.blissroms.updater.controller.UpdaterController;
 import org.blissroms.updater.controller.UpdaterService;
 import org.blissroms.updater.download.DownloadClient;
@@ -69,8 +68,11 @@ import org.blissroms.updater.misc.BuildInfoUtils;
 import org.blissroms.updater.misc.Constants;
 import org.blissroms.updater.misc.StringGenerator;
 import org.blissroms.updater.misc.Utils;
+import org.blissroms.updater.model.Update;
 import org.blissroms.updater.model.UpdateInfo;
 import org.blissroms.updater.ui.PreferenceSheet;
+
+import org.json.JSONException;
 
 import java.io.File;
 import java.io.IOException;
@@ -78,7 +80,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-public class UpdatesActivity extends UpdatesListActivity {
+public class UpdatesActivity extends UpdatesListActivity implements UpdateImporter.Callbacks {
 
     private static final String TAG = "UpdatesActivity";
     private UpdaterService mUpdaterService;
@@ -107,10 +109,15 @@ public class UpdatesActivity extends UpdatesListActivity {
                 }
             });
 
+    private UpdateImporter mUpdateImporter;
+    @SuppressWarnings("deprecation")
+    private ProgressDialog importDialog;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_updates);
+        mUpdateImporter = new UpdateImporter(this, this);
         actionCheck = findViewById(R.id.actionCheck);
         pullToRefresh = findViewById(R.id.updates_swipe_container);
         RelativeLayout actionStart = findViewById(R.id.actionStart);
@@ -183,9 +190,73 @@ public class UpdatesActivity extends UpdatesListActivity {
     }
 
     @Override
+    public void onPause() {
+        if (importDialog != null) {
+            importDialog.dismiss();
+            importDialog = null;
+            mUpdateImporter.stopImport();
+        }
+
+        super.onPause();
+    }
+
+    @Override
     public boolean onSupportNavigateUp() {
         onBackPressed();
         return true;
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        if (!mUpdateImporter.onResult(requestCode, resultCode, data)) {
+            super.onActivityResult(requestCode, resultCode, data);
+        }
+    }
+
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onImportStarted() {
+        if (importDialog != null && importDialog.isShowing()) {
+            importDialog.dismiss();
+        }
+
+        importDialog = ProgressDialog.show(this, getString(R.string.local_update_import),
+                getString(R.string.local_update_import_progress), true, false);
+    }
+
+    @Override
+    public void onImportCompleted(Update update) {
+        if (importDialog != null) {
+            importDialog.dismiss();
+            importDialog = null;
+        }
+
+        if (update == null) {
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.local_update_import)
+                    .setMessage(R.string.local_update_import_failure)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
+            return;
+        }
+
+        updateView.addItem(update.getDownloadId());
+
+        final Runnable deleteUpdate = () -> UpdaterController.getInstance(this)
+                .deleteUpdate(update.getDownloadId());
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.local_update_import)
+                .setMessage(getString(R.string.local_update_import_success, update.getVersion()))
+                .setPositiveButton(R.string.local_update_import_install, (dialog, which) -> {
+                    updateView.addItem(update.getDownloadId());
+                    // Update UI
+                    getUpdatesList();
+                    Utils.triggerUpdate(this, update.getDownloadId());
+                })
+                .setNegativeButton(android.R.string.cancel, (dialog, which) -> deleteUpdate.run())
+                .setOnCancelListener((dialog) -> deleteUpdate.run())
+                .show();
     }
 
     private final ServiceConnection mConnection = new ServiceConnection() {
@@ -333,8 +404,10 @@ public class UpdatesActivity extends UpdatesListActivity {
     private void handleDownloadStatusChange(String downloadId) {
         if (mUpdaterService == null)
             return;
-
         UpdateInfo update = mUpdaterService.getUpdaterController().getUpdate(downloadId);
+        if (update == null)
+            return;
+
         switch (update.getStatus()) {
             case PAUSED_ERROR:
                 showSnackbar(R.string.snack_download_failed, Snackbar.LENGTH_LONG);
@@ -344,6 +417,14 @@ public class UpdatesActivity extends UpdatesListActivity {
                 break;
             case VERIFIED:
                 showSnackbar(R.string.snack_download_verified, Snackbar.LENGTH_LONG);
+                break;
+            case INSTALLING:
+                updateView.updateProgress(downloadId, update.getInstallProgress());
+                pullToRefresh.setEnabled(false); // Disable pullToRefresh when installing
+                break;
+            case INSTALLED:
+                showSnackbar(R.string.snack_installation_complete, Snackbar.LENGTH_LONG);
+                findViewById(R.id.actionReboot).setVisibility(View.VISIBLE);
                 break;
         }
     }
@@ -386,6 +467,9 @@ public class UpdatesActivity extends UpdatesListActivity {
 
     @SuppressLint("ClickableViewAccessibility")
     private void showPreferencesDialog() {
-        new PreferenceSheet().setupPreferenceSheet(mUpdaterService).show(getSupportFragmentManager(), "prefdialog");
+        PreferenceSheet preferenceSheet = new PreferenceSheet();
+        preferenceSheet.setupPreferenceSheet(mUpdaterService, updateView);
+        preferenceSheet.setUpdateImporter(mUpdateImporter);
+        preferenceSheet.show(getSupportFragmentManager(), "prefdialog");
     }
 }

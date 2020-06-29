@@ -53,4 +53,6 @@ public final class Constants {
     public static final String PREF_INSTALL_NOTIFIED = "install_notified";
 
     public static final String HAS_SEEN_INFO_DIALOG = "has_seen_info_dialog";
+
+    public static final String PREF_UPDATES_TO_DELETE = "updates_to_delete";
 }
