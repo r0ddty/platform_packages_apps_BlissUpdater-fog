@@ -545,4 +545,9 @@ public class UpdaterController {
     public boolean isWaitingForReboot(String downloadId) {
         return ABUpdateInstaller.isWaitingForReboot(mContext, downloadId);
     }
+
+    public boolean isWaitingForResume() {
+        return ABUpdateInstaller.isInstallingUpdateSuspended(mContext);
+    }
+
 }

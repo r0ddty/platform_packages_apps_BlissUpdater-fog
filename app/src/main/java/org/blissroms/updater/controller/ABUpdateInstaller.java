@@ -263,6 +263,10 @@ class ABUpdateInstaller {
                 .setStatus(UpdateStatus.INSTALLATION_CANCELLED);
         mUpdaterController.notifyUpdateChange(mDownloadId);
 
+        PreferenceManager.getDefaultSharedPreferences(mContext).edit()
+                .remove(PREF_INSTALLING_SUSPENDED_AB_ID)
+                .apply();
+
     }
 
     public void suspend() {
