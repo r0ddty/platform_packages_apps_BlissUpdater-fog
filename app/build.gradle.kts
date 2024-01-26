@@ -30,12 +30,13 @@ val keystoreProperties = Properties().apply {
 }
 
 android {
-    compileSdk = 33
+    compileSdk = 34
+    namespace = "org.blissroms.updater"
 
     defaultConfig {
         applicationId = "org.blissroms.updater"
         minSdk = 30
-        targetSdk = 33
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
     }
