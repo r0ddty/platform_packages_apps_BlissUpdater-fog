@@ -45,9 +45,9 @@ class PreferenceSheet : BottomSheetDialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         with(view) {
-            preferencesAutoDeleteUpdates = findViewById(R.id.preferences_auto_delete_updates)
-            preferencesMeteredNetworkWarning = findViewById(R.id.preferences_metered_network_warning)
-            preferencesAutoUpdatesCheckInterval = findViewById(R.id.preferences_auto_updates_check_interval)
+            preferencesAutoDeleteUpdates = requireViewById(R.id.preferences_auto_delete_updates)
+            preferencesMeteredNetworkWarning = requireViewById(R.id.preferences_metered_network_warning)
+            preferencesAutoUpdatesCheckInterval = requireViewById(R.id.preferences_auto_updates_check_interval)
         }
 
         prefs = PreferenceManager.getDefaultSharedPreferences(requireContext())
