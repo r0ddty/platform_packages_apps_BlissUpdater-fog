@@ -62,7 +62,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.DateFormat;
 import java.text.NumberFormat;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -294,14 +293,6 @@ public class UpdatesListAdapter extends RecyclerView.Adapter<UpdatesListAdapter.
 
     public void setData(List<String> downloadIds) {
         mDownloadIds = downloadIds;
-    }
-
-    public void addItem(String downloadId) {
-        if (mDownloadIds == null) {
-            mDownloadIds = new ArrayList<>();
-        }
-        mDownloadIds.add(0, downloadId);
-        notifyItemInserted(0);
     }
 
     public void notifyItemChanged(String downloadId) {
